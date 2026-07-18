@@ -149,12 +149,12 @@ export function updateTank(tank, input, worldAimX, worldAimY, dt) {
   // --- 9. 장애물 충돌 해결 (탱크를 장애물 밖으로 밀어냄) ---
   const obstacles = getObstacles();
   const tankRadius = Math.min(tank.width, tank.height) / 2;
+  const tankCircle = { x: tank.x, y: tank.y, radius: tankRadius };
   for (const obs of obstacles) {
-    pushCircleOutOfRect(
-      { x: tank.x, y: tank.y, radius: tankRadius },
-      obs,
-    );
+    pushCircleOutOfRect(tankCircle, obs);
   }
+  tank.x = tankCircle.x;
+  tank.y = tankCircle.y;
 }
 
 // --- 발사 시스템 ---

@@ -14,7 +14,7 @@ export const PLAYER_INPUT = {
     reverse: false,   // S — 후진/제동
     left: false,      // A — 좌회전
     right: false,     // D — 우회전
-    action: false,    // Space — 드리프트 액션
+    dash: false,      // Space — 기본 대시 (진행 방향 순간 가속)
   },
   gunner: {
     aimX: 0,          // 마우스 화면 x 좌표 (캔버스 기준)
@@ -94,7 +94,7 @@ function handleKey(code, pressed) {
   if (code === c.reverse)  { PLAYER_INPUT.driver.reverse = pressed; return; }
   if (code === c.left)     { PLAYER_INPUT.driver.left    = pressed; return; }
   if (code === c.right)    { PLAYER_INPUT.driver.right   = pressed; return; }
-  if (code === c.action)   { PLAYER_INPUT.driver.action  = pressed; return; }
+  if (code === c.action)   { PLAYER_INPUT.driver.dash    = pressed; return; }
   if (code === c.restart)  { PLAYER_INPUT.system.restart = pressed; return; }
 }
 

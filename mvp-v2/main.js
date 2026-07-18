@@ -73,6 +73,8 @@ function respawnPlayer() {
   player.hp = player.maxHp;
   player.fireCooldown = 0;
   player.invincibleUntil = 0;
+  player.dashTimer = 0;
+  player.dashCooldown = 0;
 }
 
 /**

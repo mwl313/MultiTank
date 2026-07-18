@@ -50,8 +50,12 @@ export class Tank {
     this.driftAngle = 0;   // |chassisAngle - velocityAngle| (rad)
     this.isDrifting = false;
 
-    // --- 피격 무적 타이머 관련 (Phase 5에서 사용) ---
+    // --- 피격 무적 타이머 관련 ---
     this.invincibleUntil = 0;
+
+    // --- 대시 (Phase 6.6) ---
+    this.dashTimer = 0;       // 대시 지속 시간 (초) — 0보다 크면 대시 중
+    this.dashCooldown = 0;    // 대시 쿨다운 (초) — 0이면 사용 가능
   }
 }
 
@@ -115,6 +119,38 @@ export function updateTank(tank, input, worldAimX, worldAimY, dt) {
     const scale = maxSpeed / speed;
     tank.vx *= scale;
     tank.vy *= scale;
+  }
+
+  // --- 4.5. 대시 (Space) ---
+  // 쿨다운 감소
+  if (tank.dashCooldown > 0) {
+    tank.dashCooldown -= dtSec;
+    if (tank.dashCooldown < 0) tank.dashCooldown = 0;
+  }
+
+  // 대시 발동
+  if (driver.dash && tank.dashCooldown <= 0 && tank.dashTimer <= 0) {
+    tank.dashTimer = 0.25;        // 지속 시간 0.25초
+    tank.dashCooldown = 4.0;      // 쿨다운 4초
+    tank.invincibleUntil = performance.now() + 150; // 무적 0.15초
+  }
+
+  // 대시 지속 중: 속도 오버라이드
+  if (tank.dashTimer > 0) {
+    tank.dashTimer -= dtSec;
+    if (tank.dashTimer <= 0) tank.dashTimer = 0;
+
+    const dashSpeed = maxSpeed * 2.5;          // 대시 속도 = 최대 속도 × 2.5
+    const currentSpeed = Math.sqrt(tank.vx * tank.vx + tank.vy * tank.vy);
+    if (currentSpeed > 0.5) {
+      // 진행 방향(속도 벡터)으로 대시
+      tank.vx = (tank.vx / currentSpeed) * dashSpeed;
+      tank.vy = (tank.vy / currentSpeed) * dashSpeed;
+    } else {
+      // 정지 상태면 섀시 방향으로 대시
+      tank.vx = Math.cos(tank.chassisAngle) * dashSpeed;
+      tank.vy = Math.sin(tank.chassisAngle) * dashSpeed;
+    }
   }
 
   // --- 5. 드리프트 각도 계산 ---
@@ -210,12 +246,31 @@ export function updateCooldown(tank, dt) {
 export function drawTank(ctx, tank) {
   const { bodyColor, turretColor, turretLength, turretWidth } = TANK_CONFIG.default;
 
-  // --- 섀시: 회전된 사각형 ---
+  // --- 섀시: 앞/뒤 분할 + 방향 삼각형 ---
   ctx.save();
   ctx.translate(tank.x, tank.y);
   ctx.rotate(tank.chassisAngle);
-  ctx.fillStyle = bodyColor;
-  ctx.fillRect(-tank.width / 2, -tank.height / 2, tank.width, tank.height);
+
+  const hw = tank.width / 2;
+  const hh = tank.height / 2;
+
+  // 앞부분 (밝은 녹색) — chassisAngle 방향, 55%
+  ctx.fillStyle = '#6abf6a';
+  ctx.fillRect(-hw * 0.1, -hh, hw * 1.1, hh * 2);
+
+  // 뒷부분 (어두운 녹색) — chassisAngle 반대 방향, 45%
+  ctx.fillStyle = '#2a6e2a';
+  ctx.fillRect(-hw, -hh, hw * 0.9, hh * 2);
+
+  // 앞머리 삼각형 (노란색 방향 지표)
+  ctx.fillStyle = '#f1c40f';
+  ctx.beginPath();
+  ctx.moveTo(hw, 0);           // 탱크 정면 끝
+  ctx.lineTo(hw - 8, -10);     // 좌측 후방
+  ctx.lineTo(hw - 8, 10);      // 우측 후방
+  ctx.closePath();
+  ctx.fill();
+
   ctx.restore();
 
   // --- 포탑: 회전된 선 (총구) ---

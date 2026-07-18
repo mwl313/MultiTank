@@ -3,6 +3,7 @@
 import { TANK_CONFIG } from './config/tank.js';
 import { PHYSICS_CONFIG } from './config/physics.js';
 import { MAP_CONFIG } from './config/map.js';
+import { getObstacles } from './map.js';
 
 // --- 공통 충돌 유틸리티 ---
 
@@ -106,30 +107,58 @@ export function checkTankEnemyCollisions(tank, enemyPool, currentTime) {
     if (dist < contactDist) {
       // --- 충돌! ---
 
-      // 데미지 계산 (드리프트 중이면 배율 적용)
-      let damage = enemy.damage;
-      if (tank.isDrifting) {
-        damage *= driftDamageMultiplier;
-      }
-      tank.hp -= damage;
-      tank.hp = Math.max(0, tank.hp); // 0 미만 방지
+      if (tank.dashTimer > 0) {
+        // === 대시 중 충돌: 데미지 없음 + 적 넉백 1.5배 + 장애물 스턴 ===
+        const knockbackMul = 1.5;
+        const pushDist = (contactDist - dist) * knockbackMul;
 
-      // 적 넉백: 탱크 바깥으로 밀어내기
-      if (dist > PHYSICS_CONFIG.epsilon) {
-        const overlap = contactDist - dist;
-        enemy.x -= (dx / dist) * overlap;
-        enemy.y -= (dy / dist) * overlap;
+        if (dist > PHYSICS_CONFIG.epsilon) {
+          enemy.x -= (dx / dist) * pushDist;
+          enemy.y -= (dy / dist) * pushDist;
+        } else {
+          enemy.y -= contactDist * knockbackMul;
+        }
+
+        // 적 맵 경계 클램프
+        enemy.x = Math.max(enemy.radius, Math.min(MAP_CONFIG.width - enemy.radius, enemy.x));
+        enemy.y = Math.max(enemy.radius, Math.min(MAP_CONFIG.height - enemy.radius, enemy.y));
+
+        // 장애물에 부딪혔는지 확인 → 스턴 0.3초
+        const obstacles = getObstacles();
+        for (const obs of obstacles) {
+          if (pushCircleOutOfRect(enemy, obs)) {
+            enemy.stunTimer = 0.3;
+            break;
+          }
+        }
       } else {
-        // 탱크와 완전히 겹친 경우 위쪽으로 밀어내기
-        enemy.y -= contactDist;
+        // === 일반 충돌: 데미지 + 넉백 + 무적 ===
+
+        // 데미지 계산 (드리프트 중이면 배율 적용)
+        let damage = enemy.damage;
+        if (tank.isDrifting) {
+          damage *= driftDamageMultiplier;
+        }
+        tank.hp -= damage;
+        tank.hp = Math.max(0, tank.hp); // 0 미만 방지
+
+        // 적 넉백: 탱크 바깥으로 밀어내기
+        if (dist > PHYSICS_CONFIG.epsilon) {
+          const overlap = contactDist - dist;
+          enemy.x -= (dx / dist) * overlap;
+          enemy.y -= (dy / dist) * overlap;
+        } else {
+          // 탱크와 완전히 겹친 경우 위쪽으로 밀어내기
+          enemy.y -= contactDist;
+        }
+
+        // 적 맵 경계 클램프
+        enemy.x = Math.max(enemy.radius, Math.min(MAP_CONFIG.width - enemy.radius, enemy.x));
+        enemy.y = Math.max(enemy.radius, Math.min(MAP_CONFIG.height - enemy.radius, enemy.y));
+
+        // 무적 시간 발동 (연속 피해 방지)
+        tank.invincibleUntil = currentTime + invincibleDuration;
       }
-
-      // 적 맵 경계 클램프
-      enemy.x = Math.max(enemy.radius, Math.min(MAP_CONFIG.width - enemy.radius, enemy.x));
-      enemy.y = Math.max(enemy.radius, Math.min(MAP_CONFIG.height - enemy.radius, enemy.y));
-
-      // 무적 시간 발동 (연속 피해 방지)
-      tank.invincibleUntil = currentTime + invincibleDuration;
 
       // 한 프레임에 한 적만 충돌 (동시 다중 충돌 방지)
       break;

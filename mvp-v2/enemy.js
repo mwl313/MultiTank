@@ -51,6 +51,7 @@ export class EnemyPool {
         radius: 0, color: '',
         active: false,
         targetAngle: 0,
+        stunTimer: 0,         // 스턴 지속 시간 (초) — 0보다 크면 이동 불가
       });
     }
 
@@ -85,6 +86,7 @@ export class EnemyPool {
         enemy.color = type.color;
         enemy.active = true;
         enemy.targetAngle = 0;
+        enemy.stunTimer = 0;
         this.activeCount++;
         return enemy;
       }
@@ -218,6 +220,13 @@ export class EnemyPool {
     // --- 1. AI 방향 계산 + 이동 ---
     for (const enemy of this.pool) {
       if (!enemy.active) continue;
+
+      // 스턴 체크: 스턴 중이면 타이머만 감소시키고 이동은 건너뜀
+      if (enemy.stunTimer > 0) {
+        enemy.stunTimer -= dtSec;
+        if (enemy.stunTimer < 0) enemy.stunTimer = 0;
+        continue;
+      }
 
       // 탱크 방향 계산
       enemy.targetAngle = Math.atan2(tank.y - enemy.y, tank.x - enemy.x);

@@ -21,6 +21,9 @@ export const PLAYER_INPUT = {
     aimY: 0,          // 마우스 화면 y 좌표 (캔버스 기준)
     fire: false,      // 마우스 왼쪽 버튼
   },
+  system: {
+    restart: false,   // R — 게임오버 후 재시작 (원샷: main.js가 소비 후 false로)
+  },
 };
 
 /**
@@ -89,7 +92,7 @@ function handleKey(code, pressed) {
   if (code === c.left)     { PLAYER_INPUT.driver.left    = pressed; return; }
   if (code === c.right)    { PLAYER_INPUT.driver.right   = pressed; return; }
   if (code === c.action)   { PLAYER_INPUT.driver.action  = pressed; return; }
-  // restart(R)는 Phase 5에서 처리 — 여기선 이벤트만 감지하고 상태는 main.js에서
+  if (code === c.restart)  { PLAYER_INPUT.system.restart = pressed; return; }
 }
 
 /**

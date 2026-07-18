@@ -29,12 +29,7 @@ initInput(canvas);
 const camera = createCamera();
 
 // --- 플레이어 탱크 생성 ---
-const spawnAngle = Math.random() * Math.PI * 2;
-const spawnDist = Math.random() * MAP_CONFIG.spawnAreaRadius;
-const player = new Tank(
-  MAP_CONFIG.width / 2 + Math.cos(spawnAngle) * spawnDist,
-  MAP_CONFIG.height / 2 + Math.sin(spawnAngle) * spawnDist,
-);
+const player = new Tank(0, 0);
 
 // --- 총알 풀 ---
 const bulletPool = new BulletPool(WEAPON_CONFIG.default);
@@ -48,62 +43,150 @@ const hpBarFill = document.getElementById('hp-bar-fill');
 const hpLabel = document.getElementById('hp-label');
 const enemyCountEl = document.getElementById('enemy-count');
 const timerEl = document.getElementById('timer');
+const gameoverEl = document.getElementById('gameover');
+const survivalTimeEl = document.getElementById('survival-time');
 
 // --- 프레임 타이밍 ---
 let lastTime = 0;
 
-// --- 경과 시간 (타이머용) ---
+// --- 경과 시간 (ms) ---
 let elapsedTime = 0;
 
 // --- 맵 생성 ---
 generateMap();
 
+// --- 초기 스폰 위치로 탱크 배치 ---
+respawnPlayer();
+
+/**
+ * 플레이어 탱크를 맵 중앙 spawnAreaRadius 내 랜덤 위치에 재배치
+ */
+function respawnPlayer() {
+  const angle = Math.random() * Math.PI * 2;
+  const dist = Math.random() * MAP_CONFIG.spawnAreaRadius;
+  player.x = MAP_CONFIG.width / 2 + Math.cos(angle) * dist;
+  player.y = MAP_CONFIG.height / 2 + Math.sin(angle) * dist;
+  player.vx = 0;
+  player.vy = 0;
+  player.chassisAngle = 0;
+  player.turretAngle = 0;
+  player.hp = player.maxHp;
+  player.fireCooldown = 0;
+  player.invincibleUntil = 0;
+}
+
+/**
+ * 게임 전체 상태를 초기화하고 재시작
+ */
+function restartGame() {
+  // 플레이어 리셋
+  respawnPlayer();
+
+  // 모든 총알 비활성화
+  for (const bullet of bulletPool.bullets) {
+    bullet.active = false;
+  }
+
+  // 모든 적 비활성화
+  for (const enemy of enemyPool.pool) {
+    enemy.active = false;
+  }
+  enemyPool.activeCount = 0;
+
+  // 적 스폰 타이머 리셋
+  enemyPool.resetSpawnTimer();
+
+  // 생존 타이머 리셋
+  elapsedTime = 0;
+
+  // 게임오버 UI 숨기기
+  gameoverEl.style.display = 'none';
+
+  // 상태 복원
+  state.status = 'playing';
+
+  // R 키 원샷 소비
+  PLAYER_INPUT.system.restart = false;
+}
+
 /**
  * 매 프레임 게임 상태 업데이트
- * 입력 → 탱크 물리 → 발사 → 총알 → 적 스폰/AI → 충돌 → 카메라 → HUD
  * @param {number} dt - delta time (ms)
  */
 function update(dt) {
-  if (state.status !== 'playing') return;
-
-  // 현재 시간 (무적 타이머용)
-  const now = performance.now();
-
-  // 1. 입력 상태 갱신
+  // 입력 상태 갱신 (항상 — 게임오버 중에도 R 키 감지 필요)
   updateInput();
 
-  // 2. 마우스 화면 좌표 → 월드 좌표 변환
+  if (state.status === 'playing') {
+    updatePlaying(dt);
+  } else if (state.status === 'gameover') {
+    updateGameover();
+  }
+}
+
+/**
+ * playing 상태 업데이트: 전체 게임 로직
+ */
+function updatePlaying(dt) {
+  const now = performance.now();
+
+  // 마우스 화면 좌표 → 월드 좌표 변환
   const worldAimX = PLAYER_INPUT.gunner.aimX + camera.x;
   const worldAimY = PLAYER_INPUT.gunner.aimY + camera.y;
 
-  // 3. 탱크 물리 업데이트
+  // 탱크 물리
   updateTank(player, PLAYER_INPUT, worldAimX, worldAimY, dt);
 
-  // 4. 발사 + 쿨다운
+  // 발사
   tryFire(player, PLAYER_INPUT, bulletPool);
   updateCooldown(player, dt);
 
-  // 5. 총알 업데이트 (이동, 수명, 맵 경계)
+  // 총알
   bulletPool.updateBullets(dt);
 
-  // 6. 적 스폰
+  // 적 스폰 + AI
   enemyPool.updateSpawn(dt, player);
-
-  // 7. 적 AI + 이동 + 디스폰
   enemyPool.updateEnemies(dt, player);
 
-  // 8. 충돌 검사
+  // 충돌
   checkBulletEnemyCollisions(bulletPool, enemyPool);
   checkTankEnemyCollisions(player, enemyPool, now);
 
-  // 9. 카메라 추적
+  // 카메라
   updateCamera(camera, player.x, player.y, dt);
 
-  // 10. 경과 시간
+  // 경과 시간
   elapsedTime += dt;
 
-  // 11. HUD 갱신
+  // --- HUD 갱신 ---
+  updateHUD();
 
+  // --- 게임오버 체크 ---
+  if (player.hp <= 0) {
+    state.status = 'gameover';
+    gameoverEl.style.display = 'flex';
+
+    const totalSec = Math.floor(elapsedTime / 1000);
+    const min = Math.floor(totalSec / 60);
+    const sec = totalSec % 60;
+    survivalTimeEl.textContent =
+      `생존 시간: ${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+  }
+}
+
+/**
+ * gameover 상태 업데이트: R 키 재시작 감지
+ */
+function updateGameover() {
+  if (PLAYER_INPUT.system.restart) {
+    restartGame();
+  }
+}
+
+/**
+ * HUD 요소 갱신 (HP, 드리프트, 적 카운트, 타이머)
+ */
+function updateHUD() {
   // 드리프트 인디케이터
   if (player.isDrifting) {
     driftIndicator.classList.add('active');
@@ -117,11 +200,11 @@ function update(dt) {
   hpLabel.textContent = `HP ${player.hp} / ${player.maxHp}`;
 
   if (hpPercent > 50) {
-    hpBarFill.style.background = '#2ecc71';
+    hpBarFill.style.background = '#2ecc71'; // 초록
   } else if (hpPercent > 25) {
-    hpBarFill.style.background = '#f39c12';
+    hpBarFill.style.background = '#f1c40f'; // 노랑
   } else {
-    hpBarFill.style.background = '#e74c3c';
+    hpBarFill.style.background = '#e74c3c'; // 빨강
   }
 
   // 적 카운트
@@ -132,14 +215,6 @@ function update(dt) {
   const min = Math.floor(totalSec / 60);
   const sec = totalSec % 60;
   timerEl.textContent = `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
-
-  // 게임오버 체크
-  if (player.hp <= 0) {
-    state.status = 'gameover';
-    document.getElementById('gameover').style.display = 'flex';
-    document.getElementById('survival-time').textContent =
-      `생존 시간: ${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
-  }
 }
 
 /**

@@ -129,6 +129,14 @@ export class EnemyPool {
     }
   }
 
+  /**
+   * 스폰 타이머 초기화 (재시작 시 호출)
+   */
+  resetSpawnTimer() {
+    const { spawnInterval, initialDelay } = SPAWN_CONFIG;
+    this.spawnTimer = spawnInterval * 1000 - initialDelay * 1000;
+  }
+
   // --- 스폰 시스템 ---
 
   /**

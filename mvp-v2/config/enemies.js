@@ -60,4 +60,10 @@ export const SPAWN_CONFIG = {
   // 충돌 회피
   minSpawnClearance: 48,        // px — 장애물과 최소 거리
   spawnRetries: 5,              // 위치 재시도 횟수 (실패 시 강제 배치)
+
+  // 추가 파라미터 (Phase 6.5 — 하드코딩 제거)
+  defaultType: 'scout',             // 풀 사전 할당 시 기본 타입
+  minSpeedForDirection: 10,         // px/s — 탱크 속도가 이 이상이면 진행 방향 고려
+  forwardAvoidanceAngle: 1.047,     // rad ≈ 60° — 전방 회피 적용 각도
+  enemySeparationFactor: 1.2,       // 적끼리 밀어내기 최소 거리 배율
 };

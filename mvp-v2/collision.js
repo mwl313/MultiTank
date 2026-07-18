@@ -1,8 +1,45 @@
 // 충돌 처리 모듈
-// 용도: 총알-적 충돌, 탱크-적 충돌 (데미지, 넉백, 무적, 드리프트 배율)
+// 용도: 총알-적 충돌, 탱크-적 충돌, Circle-AABB 밀어내기 (공통)
 import { TANK_CONFIG } from './config/tank.js';
 import { PHYSICS_CONFIG } from './config/physics.js';
 import { MAP_CONFIG } from './config/map.js';
+
+// --- 공통 충돌 유틸리티 ---
+
+/**
+ * 원(Circle)을 AABB(사각형) 장애물 밖으로 밀어냄
+ * enemy.js의 동일 함수를 중복 제거를 위해 collision.js로 이관.
+ * 탱크와 적 양쪽에서 공유.
+ * @param {{x:number, y:number, radius:number}} circle
+ * @param {{x:number, y:number, w:number, h:number}} rect
+ * @returns {boolean} 충돌이 있었으면 true
+ */
+export function pushCircleOutOfRect(circle, rect) {
+  // 사각형에서 원 중심에 가장 가까운 점 찾기
+  const closestX = Math.max(rect.x, Math.min(circle.x, rect.x + rect.w));
+  const closestY = Math.max(rect.y, Math.min(circle.y, rect.y + rect.h));
+
+  const dx = circle.x - closestX;
+  const dy = circle.y - closestY;
+  const distSq = dx * dx + dy * dy;
+
+  if (distSq < circle.radius * circle.radius) {
+    const dist = Math.sqrt(distSq);
+
+    // 작은 dist에서의 폭발적 밀림 방지 (epsilon 가드)
+    if (dist < PHYSICS_CONFIG.epsilon) {
+      circle.y = rect.y - circle.radius;
+    } else {
+      const overlap = circle.radius - dist;
+      circle.x += (dx / dist) * overlap;
+      circle.y += (dy / dist) * overlap;
+    }
+    return true;
+  }
+  return false;
+}
+
+// --- 총알-적 충돌 ---
 
 /**
  * 총알-적 충돌 검사
@@ -38,6 +75,8 @@ export function checkBulletEnemyCollisions(bulletPool, enemyPool) {
     }
   }
 }
+
+// --- 탱크-적 충돌 ---
 
 /**
  * 탱크-적 충돌 검사
@@ -76,7 +115,7 @@ export function checkTankEnemyCollisions(tank, enemyPool, currentTime) {
       tank.hp = Math.max(0, tank.hp); // 0 미만 방지
 
       // 적 넉백: 탱크 바깥으로 밀어내기
-      if (dist > 0.001) {
+      if (dist > PHYSICS_CONFIG.epsilon) {
         const overlap = contactDist - dist;
         enemy.x -= (dx / dist) * overlap;
         enemy.y -= (dy / dist) * overlap;

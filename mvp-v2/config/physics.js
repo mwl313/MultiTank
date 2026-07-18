@@ -9,4 +9,6 @@ export const PHYSICS_CONFIG = {
   brakingForce: 1.5,       // S키로 제동 시 추가 감속 배율
   driftThreshold: 0.3,     // rad — 드리프트 판정 각도 (이 이상이면 DRIFT)
   driftDamageMultiplier: 2.0, // 드리프트 중 충돌 데미지 배율
+  minSpeedForDrift: 0.5,      // px/s — 드리프트 판정 최소 속도 (이 이하면 드리프트 안 함)
+  epsilon: 0.001,              // 거리 0 방지를 위한 최소값 (충돌 처리 등)
 };

@@ -4,6 +4,8 @@ import { TANK_CONFIG } from './config/tank.js';
 import { PHYSICS_CONFIG } from './config/physics.js';
 import { MAP_CONFIG } from './config/map.js';
 import { WEAPON_CONFIG } from './config/weapons.js';
+import { getObstacles } from './map.js';
+import { pushCircleOutOfRect } from './collision.js';
 
 /**
  * 탱크 클래스
@@ -116,8 +118,8 @@ export function updateTank(tank, input, worldAimX, worldAimY, dt) {
   }
 
   // --- 5. 드리프트 각도 계산 ---
-  // 속도가 거의 0이면 드리프트 판정 안 함
-  if (speed > 0.5) {
+  // 최소 속도 이상일 때만 드리프트 판정
+  if (speed > PHYSICS_CONFIG.minSpeedForDrift) {
     const velAngle = Math.atan2(tank.vy, tank.vx);
     let diff = tank.chassisAngle - velAngle;
 
@@ -143,6 +145,16 @@ export function updateTank(tank, input, worldAimX, worldAimY, dt) {
   const halfH = tank.height / 2;
   tank.x = Math.max(halfW, Math.min(MAP_CONFIG.width - halfW, tank.x));
   tank.y = Math.max(halfH, Math.min(MAP_CONFIG.height - halfH, tank.y));
+
+  // --- 9. 장애물 충돌 해결 (탱크를 장애물 밖으로 밀어냄) ---
+  const obstacles = getObstacles();
+  const tankRadius = Math.min(tank.width, tank.height) / 2;
+  for (const obs of obstacles) {
+    pushCircleOutOfRect(
+      { x: tank.x, y: tank.y, radius: tankRadius },
+      obs,
+    );
+  }
 }
 
 // --- 발사 시스템 ---

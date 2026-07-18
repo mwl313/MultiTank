@@ -1,0 +1,169 @@
+=== PHASE 6.5: 코드 품질 정리 — 장애물 충돌 + 하드코딩 제거 ===
+
+버그 수정과 코드 품질 정리 Phase야.
+기존 게임 기능(Phase 1~6)은 전혀 건드리지 말고, 아래 2가지만 처리해.
+
+---
+
+## 작업 1: 탱크-장애물 충돌 추가 (버그 수정)
+
+**현재 문제:** 탱크가 장애물을 통과함. 적만 장애물과 충돌하는데 탱크는 안 함 → 비대칭.
+
+### 수정 대상: tank.js
+
+tank.js의 updateTank 함수 마지막에 장애물 충돌 해결 로직을 추가해.
+enemy.js에 이미 `pushCircleOutOfRect` 함수가 있으니, 같은 원리를 tank에 적용하면 돼.
+
+```javascript
+// updateTank() 함수 끝부분, 위치 업데이트 + 맵 경계 클램프 다음에 추가:
+
+// --- 9. 장애물 충돌 해결 (탱크를 장애물 밖으로 밀어냄) ---
+const obstacles = getObstacles();       // map.js에서 import 필요
+const tankRadius = Math.min(tank.width, tank.height) / 2;
+for (const obs of obstacles) {
+  pushCircleOutOfRect(
+    { x: tank.x, y: tank.y, radius: tankRadius },
+    obs
+  );
+}
+```
+
+### 필요한 사항
+1. tank.js 상단에 `import { getObstacles } from './map.js';` 추가
+2. enemy.js의 `pushCircleOutOfRect` 함수는 enemy.js 안에서만 쓰이니까, **tank.js에 동일 함수를 복사**하거나, **collision.js로 공통 함수 추출**하는 게 좋음.
+
+**제안:** `pushCircleOutOfRect`를 `collision.js`로 이동하고, `enemy.js`와 `tank.js`에서 import.
+→ 함수가 두 군데서 중복되지 않게.
+
+### collision.js에 추가할 함수
+
+```javascript
+/**
+ * 원(Circle)을 AABB(사각형) 장애물 밖으로 밀어냄
+ * enemy.js에 있던 동일 함수. 중복 제거를 위해 collision.js로 이관.
+ * @param {{x:number, y:number, radius:number}} circle
+ * @param {{x:number, y:number, w:number, h:number}} rect
+ * @returns {boolean} 충돌 처리됨
+ */
+export function pushCircleOutOfRect(circle, rect) {
+  const closestX = Math.max(rect.x, Math.min(circle.x, rect.x + rect.w));
+  const closestY = Math.max(rect.y, Math.min(circle.y, rect.y + rect.h));
+  const dx = circle.x - closestX;
+  const dy = circle.y - closestY;
+  const distSq = dx * dx + dy * dy;
+
+  if (distSq < circle.radius * circle.radius) {
+    const dist = Math.sqrt(distSq);
+    if (dist < 0.001) {
+      circle.y = rect.y - circle.radius;
+    } else {
+      const overlap = circle.radius - dist;
+      circle.x += (dx / dist) * overlap;
+      circle.y += (dy / dist) * overlap;
+    }
+    return true;
+  }
+  return false;
+}
+```
+
+### 변경해야 할 파일
+
+| 파일 | 변경 내용 |
+|:----|:---------|
+| **collision.js** | `pushCircleOutOfRect` 함수 추가 (상단 export) |
+| **enemy.js** | `pushCircleOutOfRect` 제거 → `import { pushCircleOutOfRect } from './collision.js';` 로 대체 |
+| **tank.js** | 상단에 `import { getObstacles } from './map.js';` + `import { pushCircleOutOfRect } from './collision.js';` 추가 |
+| **tank.js** | `updateTank` 함수 내, 위치 업데이트 + 경계 클램프 이후에 장애물 충돌 해결 로직 추가 |
+
+---
+
+## 작업 2: 하드코딩 값 → config 파일로 이관
+
+balance-notes.md에서 발견된 하드코딩 값들을 config 파일로 옮겨.
+**절대 기존 게임 로직이나 밸런스를 변경하지 마.** 값만 config로 옮기고, 코드에서는 config 참조.
+
+### 2-A. config/physics.js에 추가할 속성
+
+```javascript
+// physics.js — 하단에 추가
+  minSpeedForDrift: 0.5,      // px/s — 드리프트 판정 최소 속도 (이 이하면 드리프트 안 함)
+  epsilon: 0.001,              // 거리 0 방지를 위한 최소값 (충돌 처리 등)
+};
+```
+
+(기존 마지막 속성 `driftDamageMultiplier:` 뒤에 `,` 찍고 추가. 이미 객체가 닫혀있으면 마지막 속성에 `,` 추가 후 추가)
+
+### 2-B. config/game.js에 추가할 속성
+
+```javascript
+// game.js — 하단에 추가
+  maxDeltaTime: 100,         // ms — 프레임 간 최대 dt 상한 (스터터링 방지)
+  cameraLerpSpeed: 8,        // 카메라 추적 속도 (클수록 빠름)
+};
+```
+
+### 2-C. config/enemies.js의 SPAWN_CONFIG에 추가할 속성
+
+```javascript
+// enemies.js — SPAWN_CONFIG 하단에 추가
+  defaultType: 'scout',             // 폴백 적 타입 (가중치 오류 시)
+  minSpeedForDirection: 10,         // px/s — 탱크 속도가 이 이상이면 진행 방향 고려
+  forwardAvoidanceAngle: 1.047,     // rad ≈ 60° — 전방 회피 적용 각도 (좌우 합 120°)
+  enemySeparationFactor: 1.2,       // 적끼리 밀어내기 최소 거리 배율
+};
+```
+
+### 2-D. config/map.js에 추가할 속성
+
+```javascript
+// map.js — 하단에 추가
+  maxGenerationAttempts: 4000,   // 장애물 배치 최대 시도 횟수 (obstacleCount × 100)
+};
+```
+
+### 2-E. config/controls.js에 추가할 속성
+
+```javascript
+// controls.js — 하단에 추가
+
+  // --- 브라우저 기본 동작 방지 ---
+  preventDefaultKeys: ['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'],
+};
+```
+
+### 2-F. 코드 파일 수정
+
+각 파일에서 하드코딩된 상수를 config import 값으로 교체.
+
+| 파일 | 라인 (근사) | 교체 전 | 교체 후 |
+|:----|:-----------|:--------|:-------|
+| **main.js** | 84 (`respawnPlayer` 내부) | `MAP_CONFIG.spawnAreaRadius` | (이미 config — ✅ 확인 필요) |
+| **main.js** | dt 상한 체크 부분 | `if (dt > 100) dt = 100;` | `if (dt > GAME_CONFIG.maxDeltaTime) dt = GAME_CONFIG.maxDeltaTime;` |
+| **tank.js** | 드리프트 판정 | `if (speed > 0.5)` | `if (speed > PHYSICS_CONFIG.minSpeedForDrift)` |
+| **camera.js** | lerpSpeed 상수 | `const lerpSpeed = 8;` | `const lerpSpeed = GAME_CONFIG.cameraLerpSpeed;` |
+| **map.js** | generateMap maxAttempts | `const maxAttempts = obstacleCount * 100;` | `const maxAttempts = MAP_CONFIG.maxGenerationAttempts;` |
+| **enemy.js** | activate 폴백 타입 | `type: 'scout'` | `type: SPAWN_CONFIG.defaultType` |
+| **enemy.js** | _findSpawnPosition 진행방향 임계 | `tankSpeed > 10` | `tankSpeed > SPAWN_CONFIG.minSpeedForDirection` |
+| **enemy.js** | forwardAvoidance 각도 | `Math.PI / 3` | `SPAWN_CONFIG.forwardAvoidanceAngle` |
+| **enemy.js** | minSeparation 상수 | `const minSeparation = 1.2;` | `const minSeparation = SPAWN_CONFIG.enemySeparationFactor;` |
+| **enemy.js** | pushCircleOutOfRect dist 체크 | `if (dist === 0)` (내부에서 `dist < 0.001` 보정 없음) | collision.js 이관 시 `dist < PHYSICS_CONFIG.epsilon` 으로 적용 |
+| **input.js** | preventDefault 대상 | 하드코딩 배열 | `CONTROL_CONFIG.preventDefaultKeys` |
+
+---
+
+## 규칙
+
+- **기존 게임 로직, 밸런스 값 절대 변경 금지.** config로 옮기는 것만.
+- config 파일 수정 시: 기존 속성 유지, **하단에 신규 속성만 추가** (다른 속성 건드리지 마).
+- 코드 파일 수정 시: config import 확인 → 하드코딩 값을 config 속성으로 교체.
+- `pushCircleOutOfRect` 이관 시: enemy.js에서 코드를 **삭제**하고 collision.js에 **추가**. enemy.js는 import로 대체.
+- ES6 module, 주석 한국어 유지.
+
+---
+
+## 테스트 방법
+로컬 서버 실행 후:
+1. 탱크가 장애물을 통과하지 않고 밀려나는지 확인
+2. 기존 게임 플레이 (이동·발사·적 추적·충돌·게임오버·재시작)가 정상인지 확인
+3. 콘솔 에러 없어야 함

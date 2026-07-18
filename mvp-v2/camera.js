@@ -43,7 +43,7 @@ export function updateCamera(camera, targetX, targetY, dt) {
   const desiredY = targetY - canvasHeight / 2;
 
   // 카메라 추적 속도 (초당 감쇠 계수 — 클수록 빠르게 따라감)
-  const lerpSpeed = 8;
+  const lerpSpeed = GAME_CONFIG.cameraLerpSpeed;
 
   // 지수 감쇠 공식: 프레임레이트 독립적인 부드러운 lerp
   const t = 1 - Math.exp(-lerpSpeed * dt / 1000);

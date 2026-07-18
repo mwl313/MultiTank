@@ -40,7 +40,7 @@ export function initInput(canvasEl) {
 
     handleKey(e.code, true);
     // Space, 화살표 키의 기본 브라우저 동작(스크롤 등) 방지
-    if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
+    if (CONTROL_CONFIG.preventDefaultKeys.includes(e.code)) {
       e.preventDefault();
     }
   });

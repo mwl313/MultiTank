@@ -248,7 +248,7 @@ function gameLoop(timestamp) {
   let dt = timestamp - lastTime;
   lastTime = timestamp;
 
-  if (dt > 100) dt = 100;
+  if (dt > GAME_CONFIG.maxDeltaTime) dt = GAME_CONFIG.maxDeltaTime;
 
   update(dt);
   render();

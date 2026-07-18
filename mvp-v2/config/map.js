@@ -17,4 +17,7 @@ export const MAP_CONFIG = {
 
   // 탱크 시작 위치
   spawnAreaRadius: 100,      // px — 맵 중심에서 이 반경 내 랜덤 스폰
+
+  // 생성 파라미터
+  maxGenerationAttempts: 4000, // 장애물 배치 최대 시도 횟수 (무한 루프 방지)
 };

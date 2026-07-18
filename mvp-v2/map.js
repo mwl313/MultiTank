@@ -69,7 +69,7 @@ export function generateMap() {
   obstacles = [];
 
   let attempts = 0;
-  const maxAttempts = obstacleCount * 100; // 무한 루프 방지
+  const maxAttempts = MAP_CONFIG.maxGenerationAttempts; // 무한 루프 방지
 
   while (obstacles.length < obstacleCount && attempts < maxAttempts) {
     attempts++;

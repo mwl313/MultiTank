@@ -2,7 +2,9 @@
 // 용도: 적 사전 할당, Vampire Survivors 스타일 스폰, 탱크 추적 AI, 렌더링
 import { ENEMY_TYPES, SPAWN_CONFIG } from './config/enemies.js';
 import { MAP_CONFIG } from './config/map.js';
+import { PHYSICS_CONFIG } from './config/physics.js';
 import { getObstacles } from './map.js';
+import { pushCircleOutOfRect } from './collision.js';
 
 // --- 헬퍼 함수 ---
 
@@ -28,35 +30,7 @@ function clamp(val, min, max) {
   return Math.max(min, Math.min(max, val));
 }
 
-/**
- * 원 vs AABB(사각형) 충돌 해결 — 적을 장애물 밖으로 밀어냄
- * @param {{x:number,y:number,radius:number}} circle - 적
- * @param {{x:number,y:number,w:number,h:number}} rect - 장애물
- * @returns {boolean} 충돌이 있었으면 true
- */
-function pushCircleOutOfRect(circle, rect) {
-  // 사각형에서 원 중심에 가장 가까운 점 찾기
-  const closestX = clamp(circle.x, rect.x, rect.x + rect.w);
-  const closestY = clamp(circle.y, rect.y, rect.y + rect.h);
-
-  const dx = circle.x - closestX;
-  const dy = circle.y - closestY;
-  const distSq = dx * dx + dy * dy;
-
-  if (distSq < circle.radius * circle.radius) {
-    const dist = Math.sqrt(distSq);
-    if (dist === 0) {
-      // 원 중심이 사각형 내부 — 위쪽으로 밀어내기
-      circle.y = rect.y - circle.radius;
-    } else {
-      const overlap = circle.radius - dist;
-      circle.x += (dx / dist) * overlap;
-      circle.y += (dy / dist) * overlap;
-    }
-    return true;
-  }
-  return false;
-}
+// (pushCircleOutOfRect → collision.js로 이관됨)
 
 // --- EnemyPool 클래스 ---
 
@@ -71,7 +45,7 @@ export class EnemyPool {
     for (let i = 0; i < poolSize; i++) {
       this.pool.push({
         x: 0, y: 0,
-        type: 'scout',
+        type: SPAWN_CONFIG.defaultType,
         hp: 0, maxHp: 0,
         speed: 0, damage: 0,
         radius: 0, color: '',
@@ -184,7 +158,7 @@ export class EnemyPool {
     // 탱크 진행 방향 (속도가 거의 없으면 랜덤)
     let tankAngle = Math.random() * Math.PI * 2;
     const tankSpeed = Math.sqrt(tank.vx * tank.vx + tank.vy * tank.vy);
-    if (tankSpeed > 10) {
+    if (tankSpeed > SPAWN_CONFIG.minSpeedForDirection) {
       tankAngle = Math.atan2(tank.vy, tank.vx);
     }
 
@@ -196,7 +170,7 @@ export class EnemyPool {
       // forwardAvoidance: 진행 방향 ±60도 이내면 50% 확률로 반대편에 스폰
       const angleDiff = Math.abs(angle - tankAngle);
       const normalizedDiff = Math.min(angleDiff, Math.PI * 2 - angleDiff);
-      if (normalizedDiff < Math.PI / 3) { // ±60도 = π/3
+      if (normalizedDiff < SPAWN_CONFIG.forwardAvoidanceAngle) { // ±60° = π/3
         if (Math.random() < (1 - forwardAvoidance)) {
           angle += Math.PI; // 반대 방향으로
         }
@@ -261,7 +235,7 @@ export class EnemyPool {
     }
 
     // --- 2. 적끼리 밀어내기 (서로 겹치지 않게) ---
-    const minSeparation = 1.2; // 최소 분리 배율 (반경 합 × 이 값)
+    const minSeparation = SPAWN_CONFIG.enemySeparationFactor; // 최소 분리 배율
     for (let i = 0; i < this.pool.length; i++) {
       const a = this.pool[i];
       if (!a.active) continue;
@@ -275,7 +249,7 @@ export class EnemyPool {
         const dist = Math.sqrt(dx * dx + dy * dy);
         const minDist = (a.radius + b.radius) * minSeparation;
 
-        if (dist < minDist && dist > 0.001) {
+        if (dist < minDist && dist > PHYSICS_CONFIG.epsilon) {
           const overlap = minDist - dist;
           const pushX = (dx / dist) * overlap * 0.5;
           const pushY = (dy / dist) * overlap * 0.5;

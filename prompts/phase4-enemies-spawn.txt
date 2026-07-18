@@ -1,0 +1,75 @@
+=== PHASE 4: 적 스폰 + AI + 충돌 ===
+
+Phase 3까지 탱크가 움직이고 총알도 나가. 이제 적을 추가한다. 이게 MVP에서 가장 중요한 Phase.
+
+---
+
+[구현할 파일]
+
+1. enemy.js — 적 시스템 (오브젝트 풀 + 스폰 + AI + 충돌)
+
+   [1-A. 적 풀]
+   - EnemyPool 클래스
+     * config/enemies.js의 SPAWN_CONFIG.poolSize만큼 미리 생성
+     * 각 적: { x, y, type, hp, maxHp, speed, damage, radius, color, active, targetAngle }
+     * activate(type, x, y): 풀에서 꺼내 초기화
+     * deactivate(enemy): 비활성화 + 풀 반환
+     * updateEnemies(dt, tank, obstacles):
+       for each active enemy:
+         1. AI: 탱크 방향 계산 → angle = atan2(tank.y-y, tank.x-x)
+         2. 이동: x += cos(angle)*speed*dt/1000, y += sin(angle)*speed*dt/1000
+         3. 적끼리 밀어내기: 가까운 적끼리 분산 (서로 겹치지 않게)
+         4. 장애물 충돌: obstacle에 걸리면 밀어내기
+         5. 탱크-적 충돌 검사: 거리 < 탱크 반경+적 반경 → 피해 (아래 2에서 처리)
+     * drawEnemies(ctx, camera): 모든 활성 적 원으로 렌더링
+
+   [1-B. 스폰 시스템] — updateSpawn(dt, tank, enemyPool, obstacles)
+   - timer += dt
+   - timer >= SPAWN_CONFIG.spawnInterval 이면 스폰
+   - maxEnemies 초과 시 건너뛰기
+   - 적 타입: 가중치 랜덤 (enemyWeights)
+   - 스폰 위치:
+     * angle = random(0, 2π)
+     * forwardAvoidance 보정:
+       tankMoveAngle = atan2(tank.vy, tank.vx)
+       angle이 tankMoveAngle ±60도 이내면 50% 확률로 angle += π (반대방향)
+     * distance = random(minSpawnDistance, spawnDistance)
+     * sx = tank.x + cos(angle)*distance, sy = tank.y + sin(angle)*distance
+     * 경계 클램프 (MAP_CONFIG.width/height)
+     * 장애물 겹침 재시도 (spawnRetries만큼, 각도 45도씩 돌림)
+
+   [1-C. 디스폰]
+   - distance(enemy, tank) > despawnDistance → deactivate
+
+2. 충돌 처리 — main.js 또는 collision.js
+
+   [2-A. 총알-적 충돌]
+   - 매 프레임 모든 활성 총알 vs 모든 활성 적 순회
+   - distance(bullet, enemy) < bullet.radius + enemy.radius → 히트
+   - enemy.hp -= bullet.damage
+   - bullet.deactivate
+   - enemy.hp <= 0 → enemy.deactivate
+
+   [2-B. 탱크-적 충돌]
+   - distance(tank, enemy) < tank반경 + enemy.radius → 히트
+   - tank.hp -= enemy.damage
+   - 적 넉백: 적을 탱크 바깥으로 밀어내기
+   - 드리프트 보너스: driftAngle > driftThreshold 이면 데미지를 damageMultiplier배로
+   - 무적 시간: invincibleDuration 동안 연속 피해 방지
+
+3. HUD 업데이트 — main.js 수정
+   - HP 바 업데이트 (hp-bar-fill 너비 + hp-label 텍스트)
+   - 적 카운트 업데이트 (enemy-count 텍스트)
+   - 드리프트 인디케이터 (#drift-indicator) active 상태
+
+---
+
+[규칙]
+- 기존 파일 자유롭게 수정. config는 읽기만.
+- ES6 module, 하드코딩 금지, 주석 한국어.
+
+---
+
+[성능 팁]
+- 총알-적 충돌 루프: 활성 총알 수 × 활성 적 수. 수가 적어서 이중 루프로 충분.
+- 추후 최적화 필요하면 공간 분할(spatial hash) 추가.

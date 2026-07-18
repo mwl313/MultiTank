@@ -1,0 +1,174 @@
+// 탱크 모듈 — 물리 시뮬레이션 + 렌더링
+// 용도: Tank 클래스, 가속·마찰·드리프트·회전 물리, 섀시+포탑 그리기
+import { TANK_CONFIG } from './config/tank.js';
+import { PHYSICS_CONFIG } from './config/physics.js';
+import { MAP_CONFIG } from './config/map.js';
+import { WEAPON_CONFIG } from './config/weapons.js';
+
+/**
+ * 탱크 클래스
+ * 속도 벡터 기반 이동 — 입력 방향으로 즉시 방향 전환이 아닌 가속 기반
+ */
+export class Tank {
+  /**
+   * @param {number} x - 초기 월드 x 좌표
+   * @param {number} y - 초기 월드 y 좌표
+   */
+  constructor(x, y) {
+    // --- 위치 ---
+    this.x = x;
+    this.y = y;
+
+    // --- 속도 벡터 (px/s) ---
+    this.vx = 0;
+    this.vy = 0;
+
+    // --- 섀시 방향 (rad) — WASD가 제어, 0 = 오른쪽 ---
+    this.chassisAngle = 0;
+
+    // --- 포탑 방향 (rad) — 마우스가 제어 ---
+    this.turretAngle = 0;
+
+    // --- 체력 ---
+    const stats = TANK_CONFIG.default;
+    this.hp = stats.hp;
+    this.maxHp = stats.hp;
+
+    // --- 크기 ---
+    this.width = stats.width;
+    this.height = stats.height;
+
+    // --- 장착 무기 ---
+    this.weapon = WEAPON_CONFIG.default;
+
+    // --- 드리프트 상태 (매 프레임 updateTank가 갱신) ---
+    this.driftAngle = 0;   // |chassisAngle - velocityAngle| (rad)
+    this.isDrifting = false;
+
+    // --- 피격 무적 타이머 관련 (Phase 5에서 사용) ---
+    this.invincibleUntil = 0;
+  }
+}
+
+/**
+ * 탱크 물리 업데이트
+ * 가속 → 마찰 → 속도 제한 → 드리프트 계산 → 포탑 조준 → 위치 이동 → 경계 클램프
+ * @param {Tank} tank - 업데이트할 탱크 인스턴스
+ * @param {{driver: object, gunner: object}} input - PLAYER_INPUT 객체
+ * @param {number} worldAimX - 포탑 조준점 월드 x 좌표
+ * @param {number} worldAimY - 포탑 조준점 월드 y 좌표
+ * @param {number} dt - delta time (ms)
+ */
+export function updateTank(tank, input, worldAimX, worldAimY, dt) {
+  const dtSec = dt / 1000;
+
+  const {
+    maxSpeed, acceleration, friction, turnRate,
+    reverseMultiplier, brakingForce, driftThreshold,
+  } = PHYSICS_CONFIG;
+
+  const { driver } = input;
+
+  // --- 1. 섀시 회전 (A/D) ---
+  if (driver.left) {
+    tank.chassisAngle -= turnRate * dtSec;
+  }
+  if (driver.right) {
+    tank.chassisAngle += turnRate * dtSec;
+  }
+
+  // --- 2. 가속 (W: 전진, S: 후진) ---
+  if (driver.forward) {
+    tank.vx += Math.cos(tank.chassisAngle) * acceleration * dtSec;
+    tank.vy += Math.sin(tank.chassisAngle) * acceleration * dtSec;
+  }
+  if (driver.reverse) {
+    // 후진 가속 (reverseMultiplier 적용)
+    tank.vx -= Math.cos(tank.chassisAngle) * acceleration * reverseMultiplier * dtSec;
+    tank.vy -= Math.sin(tank.chassisAngle) * acceleration * reverseMultiplier * dtSec;
+
+    // S키 제동: 현재 전진 중이면 추가 감속 (brakingForce 배율)
+    const forwardSpeed = tank.vx * Math.cos(tank.chassisAngle) + tank.vy * Math.sin(tank.chassisAngle);
+    if (forwardSpeed > 0) {
+      const brakeFactor = Math.pow(friction, brakingForce * dtSec * 60);
+      tank.vx *= brakeFactor;
+      tank.vy *= brakeFactor;
+    }
+  }
+
+  // --- 3. 무입력 시 마찰 감속 ---
+  // dt 기반 지수 보간으로 프레임레이트 독립성 확보
+  if (!driver.forward && !driver.reverse) {
+    const frictionFactor = Math.pow(friction, dtSec * 60);
+    tank.vx *= frictionFactor;
+    tank.vy *= frictionFactor;
+  }
+
+  // --- 4. 최대 속도 제한 (벡터 길이 클램프) ---
+  const speed = Math.sqrt(tank.vx * tank.vx + tank.vy * tank.vy);
+  if (speed > maxSpeed) {
+    const scale = maxSpeed / speed;
+    tank.vx *= scale;
+    tank.vy *= scale;
+  }
+
+  // --- 5. 드리프트 각도 계산 ---
+  // 속도가 거의 0이면 드리프트 판정 안 함
+  if (speed > 0.5) {
+    const velAngle = Math.atan2(tank.vy, tank.vx);
+    let diff = tank.chassisAngle - velAngle;
+
+    // -PI ~ PI 범위로 정규화
+    while (diff > Math.PI)  diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+
+    tank.driftAngle = Math.abs(diff);
+  } else {
+    tank.driftAngle = 0;
+  }
+  tank.isDrifting = tank.driftAngle > driftThreshold;
+
+  // --- 6. 포탑 각도 (마우스 조준 방향) ---
+  tank.turretAngle = Math.atan2(worldAimY - tank.y, worldAimX - tank.x);
+
+  // --- 7. 위치 업데이트 ---
+  tank.x += tank.vx * dtSec;
+  tank.y += tank.vy * dtSec;
+
+  // --- 8. 맵 경계 클램프 (탱크가 맵 밖으로 못 나감) ---
+  const halfW = tank.width / 2;
+  const halfH = tank.height / 2;
+  tank.x = Math.max(halfW, Math.min(MAP_CONFIG.width - halfW, tank.x));
+  tank.y = Math.max(halfH, Math.min(MAP_CONFIG.height - halfH, tank.y));
+}
+
+/**
+ * 탱크 렌더링 — 회전된 섀시(사각형) + 회전된 포탑(선)
+ * ctx.translate로 이미 카메라 오프셋이 적용된 상태에서 호출
+ * @param {CanvasRenderingContext2D} ctx - 캔버스 2D 컨텍스트
+ * @param {Tank} tank - 그릴 탱크 인스턴스
+ */
+export function drawTank(ctx, tank) {
+  const { bodyColor, turretColor, turretLength, turretWidth } = TANK_CONFIG.default;
+
+  // --- 섀시: 회전된 사각형 ---
+  ctx.save();
+  ctx.translate(tank.x, tank.y);
+  ctx.rotate(tank.chassisAngle);
+  ctx.fillStyle = bodyColor;
+  ctx.fillRect(-tank.width / 2, -tank.height / 2, tank.width, tank.height);
+  ctx.restore();
+
+  // --- 포탑: 회전된 선 (총구) ---
+  ctx.save();
+  ctx.translate(tank.x, tank.y);
+  ctx.rotate(tank.turretAngle);
+  ctx.strokeStyle = turretColor;
+  ctx.lineWidth = turretWidth;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(0, 0);                // 포탑 중심 (탱크 중심과 동일)
+  ctx.lineTo(turretLength, 0);     // 포탑 끝 (총구 방향)
+  ctx.stroke();
+  ctx.restore();
+}

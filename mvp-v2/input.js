@@ -35,6 +35,9 @@ export function initInput(canvasEl) {
 
   // --- 키보드 ---
   window.addEventListener('keydown', (e) => {
+    // 키 반복 이벤트 무시 — 재시작 루프 등 연속 발동 방지
+    if (e.repeat) return;
+
     handleKey(e.code, true);
     // Space, 화살표 키의 기본 브라우저 동작(스크롤 등) 방지
     if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {

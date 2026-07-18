@@ -329,7 +329,7 @@ export class EnemyPool {
         ctx.fillRect(enemy.x - barWidth / 2, barY, barWidth, barHeight);
 
         // HP
-        ctx.fillStyle = hpRatio > 0.5 ? '#2ecc71' : hpRatio > 0.25 ? '#f39c12' : '#e74c3c';
+        ctx.fillStyle = hpRatio > 0.5 ? '#2ecc71' : hpRatio > 0.25 ? '#f1c40f' : '#e74c3c';
         ctx.fillRect(enemy.x - barWidth / 2, barY, barWidth * hpRatio, barHeight);
       }
     }

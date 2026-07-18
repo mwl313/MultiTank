@@ -41,6 +41,9 @@ export class Tank {
     // --- 장착 무기 ---
     this.weapon = WEAPON_CONFIG.default;
 
+    // --- 발사 쿨다운 (ms) ---
+    this.fireCooldown = 0;
+
     // --- 드리프트 상태 (매 프레임 updateTank가 갱신) ---
     this.driftAngle = 0;   // |chassisAngle - velocityAngle| (rad)
     this.isDrifting = false;
@@ -141,6 +144,50 @@ export function updateTank(tank, input, worldAimX, worldAimY, dt) {
   tank.x = Math.max(halfW, Math.min(MAP_CONFIG.width - halfW, tank.x));
   tank.y = Math.max(halfH, Math.min(MAP_CONFIG.height - halfH, tank.y));
 }
+
+// --- 발사 시스템 ---
+
+/**
+ * 탱크 발사 시도 — 발사 입력 + 쿨다운 완료 시 총알 생성
+ * @param {Tank} tank - 발사할 탱크
+ * @param {object} input - PLAYER_INPUT 객체
+ * @param {import('./bullet.js').BulletPool} bulletPool - 총알 풀
+ */
+export function tryFire(tank, input, bulletPool) {
+  if (!input.gunner.fire) return;       // 발사 입력 없음
+  if (tank.fireCooldown > 0) return;     // 쿨다운 중
+
+  const bullet = bulletPool.getBullet();
+  if (!bullet) return;                   // 풀 고갈
+
+  const { turretLength } = TANK_CONFIG.default;
+  const { fireInterval } = tank.weapon;
+
+  // 총알 시작 위치: 탱크 중심 + 포탑 방향 × 포탑 길이 (총구 끝)
+  bullet.x = tank.x + Math.cos(tank.turretAngle) * turretLength;
+  bullet.y = tank.y + Math.sin(tank.turretAngle) * turretLength;
+
+  // 총알 속도: 포탑 방향 × bulletSpeed
+  bullet.vx = Math.cos(tank.turretAngle) * bulletPool.bulletSpeed;
+  bullet.vy = Math.sin(tank.turretAngle) * bulletPool.bulletSpeed;
+
+  // 발사 쿨다운 시작
+  tank.fireCooldown = fireInterval;
+}
+
+/**
+ * 발사 쿨다운 타이머 감소
+ * @param {Tank} tank - 쿨다운을 감소시킬 탱크
+ * @param {number} dt - delta time (ms)
+ */
+export function updateCooldown(tank, dt) {
+  if (tank.fireCooldown > 0) {
+    tank.fireCooldown -= dt;
+    if (tank.fireCooldown < 0) tank.fireCooldown = 0;
+  }
+}
+
+// --- 렌더링 ---
 
 /**
  * 탱크 렌더링 — 회전된 섀시(사각형) + 회전된 포탑(선)

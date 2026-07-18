@@ -4,8 +4,10 @@ import { GAME_CONFIG } from './config/game.js';
 import { MAP_CONFIG } from './config/map.js';
 import { createCamera, updateCamera } from './camera.js';
 import { generateMap, drawMap } from './map.js';
-import { Tank, updateTank, drawTank } from './tank.js';
+import { Tank, updateTank, drawTank, tryFire, updateCooldown } from './tank.js';
 import { PLAYER_INPUT, initInput, updateInput } from './input.js';
+import { BulletPool } from './bullet.js';
+import { WEAPON_CONFIG } from './config/weapons.js';
 
 // --- 캔버스 초기화 ---
 const canvas = document.getElementById('game-canvas');
@@ -38,6 +40,9 @@ const driftIndicator = document.getElementById('drift-indicator');
 const hpBarFill = document.getElementById('hp-bar-fill');
 const hpLabel = document.getElementById('hp-label');
 
+// --- 총알 풀 생성 ---
+const bulletPool = new BulletPool(WEAPON_CONFIG.default);
+
 // --- 프레임 타이밍 ---
 let lastTime = 0;
 
@@ -62,23 +67,24 @@ function update(dt) {
   // 3. 탱크 물리 업데이트 (가속, 회전, 드리프트, 포탑 조준, 경계 클램프)
   updateTank(player, PLAYER_INPUT, worldAimX, worldAimY, dt);
 
-  // 4. 카메라가 플레이어를 부드럽게 추적
+  // 4. 발사 시도 + 쿨다운 갱신
+  tryFire(player, PLAYER_INPUT, bulletPool);
+  updateCooldown(player, dt);
+
+  // 5. 총알 업데이트 (이동, 수명, 맵 경계)
+  bulletPool.updateBullets(dt);
+
+  // 6. 카메라가 플레이어를 부드럽게 추적
   updateCamera(camera, player.x, player.y, dt);
 
-  // 5. HUD 갱신: 드리프트 인디케이터 + 디버그 로그
+  // 7. HUD 갱신: 드리프트 인디케이터
   if (player.isDrifting) {
     driftIndicator.classList.add('active');
   } else {
     driftIndicator.classList.remove('active');
   }
-  // TODO: 드리프트 동작 확인 후 제거
-  console.log(
-    `driftAngle: ${(player.driftAngle * 180 / Math.PI).toFixed(1)}°`,
-    `isDrifting: ${player.isDrifting}`,
-    `speed: ${Math.sqrt(player.vx ** 2 + player.vy ** 2).toFixed(0)}`,
-  );
 
-  // 6. HUD 갱신: HP 바
+  // 8. HUD 갱신: HP 바
   const hpPercent = (player.hp / player.maxHp) * 100;
   hpBarFill.style.width = `${hpPercent}%`;
   hpLabel.textContent = `HP ${player.hp} / ${player.maxHp}`;
@@ -108,6 +114,7 @@ function render() {
   // --- 월드 오브젝트 (카메라 기준 자동 변환) ---
   drawMap(ctx);
   drawTank(ctx, player);
+  bulletPool.drawBullets(ctx);
 
   ctx.restore();
 

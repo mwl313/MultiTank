@@ -141,16 +141,9 @@ export function updateTank(tank, input, worldAimX, worldAimY, dt) {
     if (tank.dashTimer <= 0) tank.dashTimer = 0;
 
     const dashSpeed = maxSpeed * 2.5;          // 대시 속도 = 최대 속도 × 2.5
-    const currentSpeed = Math.sqrt(tank.vx * tank.vx + tank.vy * tank.vy);
-    if (currentSpeed > 0.5) {
-      // 진행 방향(속도 벡터)으로 대시
-      tank.vx = (tank.vx / currentSpeed) * dashSpeed;
-      tank.vy = (tank.vy / currentSpeed) * dashSpeed;
-    } else {
-      // 정지 상태면 섀시 방향으로 대시
-      tank.vx = Math.cos(tank.chassisAngle) * dashSpeed;
-      tank.vy = Math.sin(tank.chassisAngle) * dashSpeed;
-    }
+    // 항상 섀시 앞방향(chassisAngle)으로 대시
+    tank.vx = Math.cos(tank.chassisAngle) * dashSpeed;
+    tank.vy = Math.sin(tank.chassisAngle) * dashSpeed;
   }
 
   // --- 5. 드리프트 각도 계산 ---

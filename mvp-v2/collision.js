@@ -87,8 +87,8 @@ export function checkBulletEnemyCollisions(bulletPool, enemyPool) {
  * @param {number} currentTime - 현재 시간 (ms, performance.now 기준)
  */
 export function checkTankEnemyCollisions(tank, enemyPool, currentTime) {
-  // 무적 상태면 충돌 스킵
-  if (currentTime < tank.invincibleUntil) return;
+  // 대시 중이 아니고 무적 상태면 충돌 스킵 (대시는 무적과 무관하게 넉백 처리)
+  if (tank.dashTimer <= 0 && currentTime < tank.invincibleUntil) return;
 
   const { invincibleDuration } = TANK_CONFIG.default;
   const { driftDamageMultiplier } = PHYSICS_CONFIG;
@@ -108,8 +108,8 @@ export function checkTankEnemyCollisions(tank, enemyPool, currentTime) {
       // --- 충돌! ---
 
       if (tank.dashTimer > 0) {
-        // === 대시 중 충돌: 데미지 없음 + 적 넉백 1.5배 + 장애물 스턴 ===
-        const knockbackMul = 1.5;
+        // === 대시 중 충돌: 데미지 없음 + 적 넉백 4배 + 장애물 스턴 ===
+        const knockbackMul = 4.0;
         const pushDist = (contactDist - dist) * knockbackMul;
 
         if (dist > PHYSICS_CONFIG.epsilon) {
@@ -132,7 +132,8 @@ export function checkTankEnemyCollisions(tank, enemyPool, currentTime) {
           }
         }
       } else {
-        // === 일반 충돌: 데미지 + 넉백 + 무적 ===
+        // === 일반 충돌: 무적 체크 → 데미지 + 넉백 ===
+        if (currentTime < tank.invincibleUntil) return;
 
         // 데미지 계산 (드리프트 중이면 배율 적용)
         let damage = enemy.damage;

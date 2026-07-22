@@ -4,6 +4,8 @@ import { TANK_CONFIG } from './config/tank.js';
 import { PHYSICS_CONFIG } from './config/physics.js';
 import { MAP_CONFIG } from './config/map.js';
 import { getObstacles } from './map.js';
+import { WEAPON_CONFIG } from './config/weapons.js';
+import { applyExplosionBlast, applyPierce, getSniperDamageMultiplier } from './weapon-effects.js';
 
 // --- 공통 충돌 유틸리티 ---
 
@@ -62,16 +64,48 @@ export function checkBulletEnemyCollisions(bulletPool, enemyPool) {
 
       if (dist < contactDist) {
         // --- 히트! ---
-        enemy.hp -= bullet.damage;
-        bulletPool.releaseBullet(bullet);
+
+        // 데미지 계산 (저격 무기: 원거리 계수 적용)
+        let damage = bullet.damage;
+        if (bullet.weaponId === 3) {
+          const hitDist = bullet.lifetime * WEAPON_CONFIG.sniper.bulletSpeed;
+          const mul = getSniperDamageMultiplier(hitDist, WEAPON_CONFIG.sniper.baseRangeMultiplier);
+          damage *= mul;
+        }
+
+        enemy.hp -= damage;
+
+        // --- 무기별 특수 효과 ---
+        if (bullet.weaponId === 1) {
+          // 💥 폭발: 탄착 지점에 AoE 데미지
+          applyExplosionBlast(
+            bullet.x, bullet.y,
+            WEAPON_CONFIG.explosion.baseBlastRadius,
+            bullet.damage,
+            enemyPool,
+          );
+          bulletPool.releaseBullet(bullet);
+        } else if (bullet.weaponId === 4) {
+          // 🔩 관통: bullet 유지, 데미지 감소 후 계속 진행
+          const canContinue = applyPierce(bullet);
+          if (!canContinue) {
+            bulletPool.releaseBullet(bullet);
+          }
+          // 관통은 break 하지 않음 — 같은 총알이 다음 적도 타격 가능
+        } else {
+          // 일반 / 속사 / 저격: 명중 즉시 소멸
+          bulletPool.releaseBullet(bullet);
+        }
 
         // 적 처치
         if (enemy.hp <= 0) {
           enemyPool.deactivate(enemy);
         }
 
-        // 총알은 한 적만 타격 가능 (관통 없음)
-        break;
+        // 관통이 아니면 break (한 총알이 한 적만 타격)
+        if (bullet.weaponId !== 4) {
+          break;
+        }
       }
     }
   }

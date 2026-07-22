@@ -11,6 +11,10 @@ export const CONTROL_CONFIG = {
 
   // --- 포수 ---
   fire:     'MouseLeft',  // 마우스 왼쪽 버튼
+  weapon1:  'Digit1',     // 1 — 폭발 무기
+  weapon2:  'Digit2',     // 2 — 속사 무기
+  weapon3:  'Digit3',     // 3 — 저격 무기
+  weapon4:  'Digit4',     // 4 — 관통 무기
 
   // --- 시스템 ---
   restart:  'KeyR',       // 게임오버 후 재시작

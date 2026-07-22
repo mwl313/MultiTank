@@ -3,9 +3,10 @@
 import { TANK_CONFIG } from './config/tank.js';
 import { PHYSICS_CONFIG } from './config/physics.js';
 import { MAP_CONFIG } from './config/map.js';
-import { WEAPON_CONFIG } from './config/weapons.js';
 import { getObstacles } from './map.js';
 import { pushCircleOutOfRect } from './collision.js';
+import { fireWeapon, fireFusionWeapon } from './weapon-fire.js';
+import { getWeaponById } from './config/weapons.js';
 
 /**
  * 탱크 클래스
@@ -39,9 +40,6 @@ export class Tank {
     // --- 크기 ---
     this.width = stats.width;
     this.height = stats.height;
-
-    // --- 장착 무기 ---
-    this.weapon = WEAPON_CONFIG.default;
 
     // --- 발사 쿨다운 (ms) ---
     this.fireCooldown = 0;
@@ -189,31 +187,38 @@ export function updateTank(tank, input, worldAimX, worldAimY, dt) {
 // --- 발사 시스템 ---
 
 /**
- * 탱크 발사 시도 — 발사 입력 + 쿨다운 완료 시 총알 생성
+ * 탱크 발사 시도 — 무기 선택 기반 발사
  * @param {Tank} tank - 발사할 탱크
  * @param {object} input - PLAYER_INPUT 객체
  * @param {import('./bullet.js').BulletPool} bulletPool - 총알 풀
+ * @param {import('./magazine.js').MagazineSystem} magSystem - 탄창 시스템
  */
-export function tryFire(tank, input, bulletPool) {
+export function tryFire(tank, input, bulletPool, magSystem) {
   if (!input.gunner.fire) return;       // 발사 입력 없음
   if (tank.fireCooldown > 0) return;     // 쿨다운 중
 
-  const bullet = bulletPool.getBullet();
-  if (!bullet) return;                   // 풀 고갈
+  const ids = [...input.gunner.selectedWeapons];
+  if (ids.length === 0) return;          // 선택된 무기 없음
+  if (!magSystem.canFire(ids)) return;    // 탄창 부족
 
-  const { turretLength } = TANK_CONFIG.default;
-  const { fireInterval } = tank.weapon;
+  // 탄창 소모
+  magSystem.consume(ids);
 
-  // 총알 시작 위치: 탱크 중심 + 포탑 방향 × 포탑 길이 (총구 끝)
-  bullet.x = tank.x + Math.cos(tank.turretAngle) * turretLength;
-  bullet.y = tank.y + Math.sin(tank.turretAngle) * turretLength;
-
-  // 총알 속도: 포탑 방향 × bulletSpeed
-  bullet.vx = Math.cos(tank.turretAngle) * bulletPool.bulletSpeed;
-  bullet.vy = Math.sin(tank.turretAngle) * bulletPool.bulletSpeed;
-
-  // 발사 쿨다운 시작
-  tank.fireCooldown = fireInterval;
+  // 발사
+  if (ids.length === 1) {
+    fireWeapon(ids[0], tank, bulletPool);
+    const w = getWeaponById(ids[0]);
+    tank.fireCooldown = w ? w.fireInterval : 500;
+  } else {
+    // 융합 무기 (2개 선택)
+    fireFusionWeapon(ids, tank, bulletPool);
+    const w1 = getWeaponById(ids[0]);
+    const w2 = getWeaponById(ids[1]);
+    tank.fireCooldown = Math.max(
+      w1 ? w1.fireInterval : 0,
+      w2 ? w2.fireInterval : 0,
+    );
+  }
 }
 
 /**

@@ -8,7 +8,7 @@ import { Tank, updateTank, drawTank, tryFire, updateCooldown } from './tank.js';
 import { PLAYER_INPUT, initInput, updateInput } from './input.js';
 import { BulletPool } from './bullet.js';
 import { EnemyPool } from './enemy.js';
-import { WEAPON_CONFIG } from './config/weapons.js';
+import { MagazineSystem } from './magazine.js';
 import { checkBulletEnemyCollisions, checkTankEnemyCollisions } from './collision.js';
 
 // --- 캔버스 초기화 ---
@@ -32,10 +32,13 @@ const camera = createCamera();
 const player = new Tank(0, 0);
 
 // --- 총알 풀 ---
-const bulletPool = new BulletPool(WEAPON_CONFIG.default);
+const bulletPool = new BulletPool();
 
 // --- 적 풀 ---
 const enemyPool = new EnemyPool();
+
+// --- 탄창 시스템 ---
+const magSystem = new MagazineSystem();
 
 // --- HUD 요소 참조 ---
 const driftIndicator = document.getElementById('drift-indicator');
@@ -98,6 +101,9 @@ function restartGame() {
   // 적 스폰 타이머 리셋
   enemyPool.resetSpawnTimer();
 
+  // 무기 선택 초기화
+  PLAYER_INPUT.gunner.selectedWeapons.clear();
+
   // 생존 타이머 리셋
   elapsedTime = 0;
 
@@ -139,9 +145,12 @@ function updatePlaying(dt) {
   // 탱크 물리
   updateTank(player, PLAYER_INPUT, worldAimX, worldAimY, dt);
 
-  // 발사
-  tryFire(player, PLAYER_INPUT, bulletPool);
+  // 발사 (무기 선택 기반)
+  tryFire(player, PLAYER_INPUT, bulletPool, magSystem);
   updateCooldown(player, dt);
+
+  // 탄창 자동 재장전 (선택 안 된 무기만)
+  magSystem.updateReload(dt, PLAYER_INPUT.gunner.selectedWeapons);
 
   // 총알
   bulletPool.updateBullets(dt);
@@ -212,11 +221,33 @@ function updateHUD() {
   // 적 카운트
   enemyCountEl.textContent = `적: ${enemyPool.activeCount}`;
 
+  // 무기 HUD (선택된 무기 + 탄창)
+  updateWeaponHUD();
+
   // 타이머
   const totalSec = Math.floor(elapsedTime / 1000);
   const min = Math.floor(totalSec / 60);
   const sec = totalSec % 60;
   timerEl.textContent = `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+}
+
+/**
+ * 무기 선택 + 탄창 HUD (적 카운트 옆에 표시)
+ */
+function updateWeaponHUD() {
+  const selected = PLAYER_INPUT.gunner.selectedWeapons;
+  const weaponNames = { 1: '폭발', 2: '속사', 3: '저격', 4: '관통' };
+
+  if (selected.size === 0) {
+    enemyCountEl.textContent = `적: ${enemyPool.activeCount} | 무기: 없음`;
+  } else {
+    const names = [...selected].map(id => weaponNames[id] || id).join('+');
+    const ammo = [...selected].map(id => {
+      const d = magSystem.getDisplay(id);
+      return `${d.current}/${d.max}`;
+    }).join('|');
+    enemyCountEl.textContent = `적: ${enemyPool.activeCount} | ${names} [${ammo}]`;
+  }
 }
 
 /**

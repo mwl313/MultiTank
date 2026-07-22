@@ -1,52 +1,38 @@
-// 총알 시스템 — 오브젝트 풀
-// 용도: 총알 사전 할당, 활성화/비활성화, 이동, 수명 관리, 맵 경계 체크, 렌더링
+// 총알 시스템 — 통합 오브젝트 풀 (4종 무기 공유)
+// 용도: 총알 사전 할당, 무기별 속성 주입, 이동, 수명 관리, 맵 경계 체크, 렌더링
 import { MAP_CONFIG } from './config/map.js';
+import { WEAPON_CONFIG } from './config/weapons.js';
+
+/** 전체 풀 크기 (4종 무기 poolSize 합계) */
+const TOTAL_POOL_SIZE = Object.values(WEAPON_CONFIG)
+  .reduce((sum, w) => sum + w.poolSize, 0);
 
 export class BulletPool {
-  /**
-   * @param {object} weaponConfig — WEAPON_CONFIG.default 등 무기 설정 객체
-   * @param {number} weaponConfig.bulletSpeed - 총알 속도 (px/s)
-   * @param {number} weaponConfig.bulletDamage - 데미지
-   * @param {number} weaponConfig.bulletRadius - 충돌 반경 (px)
-   * @param {number} weaponConfig.bulletLifetime - 최대 수명 (초)
-   * @param {string} weaponConfig.bulletColor - 총알 색상
-   * @param {number} weaponConfig.poolSize - 오브젝트 풀 크기
-   */
-  constructor(weaponConfig) {
-    const {
-      bulletSpeed, bulletDamage, bulletRadius,
-      bulletLifetime, bulletColor, poolSize,
-    } = weaponConfig;
-
-    /** @type {number} 총알 속도 (px/s) */
-    this.bulletSpeed = bulletSpeed;
-    /** @type {number} 총알 데미지 */
-    this.bulletDamage = bulletDamage;
-    /** @type {number} 총알 최대 수명 (초) */
-    this.bulletLifetime = bulletLifetime;
-    /** @type {string} 총알 색상 */
-    this.bulletColor = bulletColor;
-
-    // --- 오브젝트 풀 사전 할당 ---
-    // 모든 총알을 미리 생성해두고 active 플래그로 재사용 (GC 회피)
-    /** @type {{x:number,y:number,vx:number,vy:number,active:boolean,lifetime:number,radius:number,color:string,damage:number}[]} */
+  constructor() {
+    // --- 통합 오브젝트 풀 사전 할당 ---
+    /** @type {{x:number,y:number,vx:number,vy:number,active:boolean,lifetime:number,maxLifetime:number,radius:number,color:string,damage:number,weaponId:number,pierceReduction:number}[]} */
     this.bullets = [];
-    for (let i = 0; i < poolSize; i++) {
+    for (let i = 0; i < TOTAL_POOL_SIZE; i++) {
       this.bullets.push({
         x: 0, y: 0,
         vx: 0, vy: 0,
         active: false,
         lifetime: 0,
-        radius: bulletRadius,
-        color: bulletColor,
-        damage: bulletDamage,
+        maxLifetime: 1.5,     // 기본값 (발사 시 무기별로 덮어씀)
+        radius: 4,
+        color: '#fff',
+        damage: 0,
+        weaponId: 0,           // 1=폭발, 2=속사, 3=저격, 4=관통
+        pierceReduction: 0,    // 관통 시 데미지 감소율 (0 = 관통 불가)
       });
     }
   }
 
   /**
-   * 비활성 총알 하나를 찾아 활성화해서 반환. 풀 고갈 시 null.
-   * @returns {object|null} 활성화된 총알 객체, 없으면 null
+   * 비활성 총알 하나를 찾아 반환. 풀 고갈 시 null.
+   * 호출자가 무기별 속성(x, y, vx, vy, radius, color, damage,
+   *   weaponId, maxLifetime, pierceReduction)을 설정해야 함.
+   * @returns {object|null}
    */
   getBullet() {
     for (const bullet of this.bullets) {
@@ -56,12 +42,12 @@ export class BulletPool {
         return bullet;
       }
     }
-    return null; // 풀 고갈 — 모든 총알이 활성 상태
+    return null; // 풀 고갈
   }
 
   /**
    * 총알을 비활성화해서 풀에 반환
-   * @param {object} bullet - 반환할 총알 객체
+   * @param {object} bullet
    */
   releaseBullet(bullet) {
     bullet.active = false;
@@ -82,14 +68,14 @@ export class BulletPool {
       bullet.x += bullet.vx * dtSec;
       bullet.y += bullet.vy * dtSec;
 
-      // --- 수명 체크 ---
+      // --- 수명 체크 (무기별 maxLifetime 사용) ---
       bullet.lifetime += dtSec;
-      if (bullet.lifetime >= this.bulletLifetime) {
+      if (bullet.lifetime >= bullet.maxLifetime) {
         this.releaseBullet(bullet);
         continue;
       }
 
-      // --- 맵 경계 체크 (경계 밖으로 나가면 풀 반환) ---
+      // --- 맵 경계 체크 ---
       if (
         bullet.x < 0 || bullet.x > width ||
         bullet.y < 0 || bullet.y > height
@@ -100,16 +86,14 @@ export class BulletPool {
   }
 
   /**
-   * 모든 활성 총알을 작은 원으로 렌더링
-   * ctx.translate로 이미 카메라 오프셋이 적용된 상태에서 호출
-   * @param {CanvasRenderingContext2D} ctx - 캔버스 2D 컨텍스트
+   * 모든 활성 총알을 렌더링 — 각 총알의 자체 color 사용
+   * @param {CanvasRenderingContext2D} ctx
    */
   drawBullets(ctx) {
-    ctx.fillStyle = this.bulletColor;
-
     for (const bullet of this.bullets) {
       if (!bullet.active) continue;
 
+      ctx.fillStyle = bullet.color;
       ctx.beginPath();
       ctx.arc(bullet.x, bullet.y, bullet.radius, 0, Math.PI * 2);
       ctx.fill();

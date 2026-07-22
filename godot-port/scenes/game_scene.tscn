@@ -1,0 +1,36 @@
+[gd_scene load_steps=9 format=3 uid="uid://cgame000000000001"]
+
+[ext_resource type="Script" uid="uid://cscript_player000001" path="res://scripts/player.gd" id="1_player"]
+[ext_resource type="Script" uid="uid://cscript_mapgen000001" path="res://scripts/map_generator.gd" id="2_mapgen"]
+[ext_resource type="Script" uid="uid://cscript_bullets00001" path="res://scripts/bullet_pool.gd" id="3_bullets"]
+[ext_resource type="Script" uid="uid://cscript_enemies00001" path="res://scripts/enemy_pool.gd" id="4_enemies"]
+[ext_resource type="Script" uid="uid://cscript_weapons00001" path="res://scripts/weapon_system.gd" id="5_weapons"]
+[ext_resource type="Script" uid="uid://cscript_hud000000001" path="res://scripts/hud.gd" id="6_hud"]
+[ext_resource type="Script" uid="uid://cscript_manager00001" path="res://scripts/game_manager.gd" id="7_manager"]
+
+[node name="GameScene" type="Node2D"]
+script = ExtResource("7_manager")
+
+[node name="MapGenerator" type="Node2D" parent="."]
+script = ExtResource("2_mapgen")
+
+[node name="Player" type="CharacterBody2D" parent="."]
+script = ExtResource("1_player")
+
+[node name="Bullets" type="Node2D" parent="."]
+script = ExtResource("3_bullets")
+
+[node name="Enemies" type="Node2D" parent="."]
+script = ExtResource("4_enemies")
+
+[node name="WeaponSystem" type="Node" parent="."]
+script = ExtResource("5_weapons")
+
+[node name="Camera2D" type="Camera2D" parent="."]
+position_smoothing_enabled = true
+position_smoothing_speed = 8.0
+drag_horizontal_enabled = false
+drag_vertical_enabled = false
+
+[node name="HUD" type="CanvasLayer" parent="."]
+script = ExtResource("6_hud")

@@ -1,0 +1,57 @@
+=== PHASE 3: 포탑 발사 + 총알 ===
+
+Phase 2까지 탱크가 움직이고 드리프트까지 나와. 이제 총을 쏠 수 있게 만들자.
+
+---
+
+[구현할 파일]
+
+1. bullet.js — 총알 시스템 (오브젝트 풀)
+   - BulletPool 클래스:
+     * constructor(weaponConfig): config/weapons.js에서 poolSize만큼 미리 생성
+     * getBullet(): 비활성 총알 반환 or null (풀 고갈)
+     * releaseBullet(bullet): 총알을 비활성화해서 풀에 반환
+     * updateBullets(dt): 모든 활성 총알 이동 + 수명 체크
+     * drawBullets(ctx, camera): 모든 활성 총알 작은 원으로 렌더링
+   
+   - 총알 하나:
+     {
+       x, y,               // 위치 (월드 좌표)
+       vx, vy,             // 속도 (px/s)
+       active: bool,
+       lifetime: 0,        // 경과 시간 (초)
+       maxLifetime: 1.5,   // config/weapons.js 값
+       radius: 4,
+       color: '#ffdd57',
+       damage: 10,
+     }
+   
+   - 총알 이동: x += vx * dt/1000, y += vy * dt/1000
+   - 수명 다하면 releaseBullet(bullet)
+
+2. turret.js (또는 tank.js 수정) — 발사 로직
+   - fireCooldown: 각 탱크별 쿨다운 타이머 (ms)
+   - tryFire(tank, input, bulletPool, dt):
+     * input.gunner.fire === true 이고 쿨다운 0일 때
+     * 풀에서 총알 가져오기
+     * 총알 위치: 탱크 중심 + 포탑 방향으로 turretLength만큼 앞
+     * 총알 속도: 포탑 각도 방향 × config/weapons.js bulletSpeed
+     * 쿨다운: fireInterval로 설정
+   - updateCooldown(tank, dt): dt만큼 쿨다운 감소
+
+3. main.js 수정
+   - BulletPool 생성
+   - update(dt): tryFire() + BulletPool.updateBullets(dt)
+   - render(): drawBullets() 호출
+
+---
+
+[규칙]
+- 기존 파일들은 자유롭게 수정해도 됨. config 파일은 읽기만.
+- ES6 module, 하드코딩 금지, 주석 한국어.
+
+---
+
+[총알-맵 경계 충돌 (선택)]
+총알이 맵 경계를 벗어나면 releaseBullet()으로 풀 반환.
+나중에 장애물 충돌도 추가할 거지만, 이 Phase에서는 경계만 확인.

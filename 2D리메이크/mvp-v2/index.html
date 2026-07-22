@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tank MVP v2</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #111;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      overflow: hidden;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      color: #fff;
+      user-select: none;
+    }
+    #game-container {
+      position: relative;
+      width: 1920px;
+      height: 1080px;
+    }
+    canvas {
+      display: block;
+      background: #1a1a2e;
+    }
+
+    /* --- HUD --- */
+    #hud {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+    }
+    #hp-bar-container {
+      position: absolute;
+      top: 20px; left: 20px;
+      width: 250px; height: 18px;
+      border: 2px solid #555;
+      background: #222;
+    }
+    #hp-bar-fill {
+      width: 100%; height: 100%;
+      background: #2ecc71;
+      transition: width 0.2s;
+    }
+    #hp-label {
+      position: absolute;
+      top: 42px; left: 20px;
+      font-size: 13px;
+      color: #aaa;
+    }
+    #timer {
+      position: absolute;
+      top: 20px; left: 50%;
+      transform: translateX(-50%);
+      font-size: 20px;
+      font-weight: bold;
+      color: #ddd;
+    }
+    #enemy-count {
+      position: absolute;
+      top: 20px; right: 20px;
+      font-size: 14px;
+      color: #e74c3c;
+    }
+    #drift-indicator {
+      position: absolute;
+      bottom: 40px; left: 50%;
+      transform: translateX(-50%);
+      font-size: 24px;
+      font-weight: bold;
+      color: #f39c12;
+      opacity: 0;
+      transition: opacity 0.15s;
+      text-shadow: 0 0 10px rgba(243,156,18,0.5);
+    }
+    #drift-indicator.active {
+      opacity: 1;
+    }
+
+    /* --- Game Over --- */
+    #gameover {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      display: none;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      background: rgba(0,0,0,0.7);
+      pointer-events: auto;
+    }
+    #gameover span {
+      font-size: 64px;
+      font-weight: bold;
+      color: #e74c3c;
+      margin-bottom: 16px;
+    }
+    #gameover p {
+      font-size: 18px;
+      color: #ccc;
+      margin-bottom: 8px;
+    }
+    #gameover .restart-hint {
+      font-size: 14px;
+      color: #888;
+      margin-top: 24px;
+    }
+  </style>
+</head>
+<body>
+  <div id="game-container">
+    <canvas id="game-canvas"></canvas>
+    <div id="hud">
+      <div id="hp-bar-container"><div id="hp-bar-fill"></div></div>
+      <div id="hp-label">HP 100 / 100</div>
+      <div id="timer">00:00</div>
+      <div id="enemy-count">적: 0</div>
+      <div id="drift-indicator">DRIFT!</div>
+    </div>
+    <div id="gameover">
+      <span>GAME OVER</span>
+      <p id="survival-time">생존 시간: 00:00</p>
+      <p class="restart-hint">R 키를 눌러 재시작</p>
+    </div>
+  </div>
+  <script type="module" src="main.js"></script>
+</body>
+</html>

@@ -1,0 +1,42 @@
+=== PHASE 5: 게임오버 + HUD 연동 ===
+
+적이 탱크를 때리면 HP가 깎이는데, 이제 게임오버 화면과 HUD를 완성하자.
+
+---
+
+[구현]
+
+1. 게임오버 로직 — main.js 수정
+   - tank.hp <= 0 → gameState.status = 'gameover'
+   - gameover 상태일 때:
+     * update() 중단 (탱크·적·총알 모두 정지)
+     * #gameover div를 display: flex로 표시
+     * #survival-time에 생존 시간 포맷팅 (MM:SS)
+     * R 키(controls.js의 restart) 누르면 리셋:
+       - tank.x/y 맵 중앙으로
+       - tank.hp = maxHp
+       - tank.vx = tank.vy = 0
+       - 모든 적 deactivate
+       - 모든 총알 deactivate
+       - 스폰 타이머 리셋
+       - 생존 타이머 리셋
+       - 게임오버 화면 숨기기
+       - 상태 = 'playing'
+
+2. 타이머
+   - survivalTime (초) — 매 프레임 dt/1000 누적
+   - timer에 포맷팅해서 표시: Math.floor(survivalTime/60) + ':' + pad(seconds)
+   - 게임오버 시에도 업데이트 중단 (현재 시간 그대로 표시)
+
+3. HUD 연동
+   - HP: fill 너비 = (tank.hp / tank.maxHp) * 100%
+   - HP 색상: 50% 이하 → 노랑(#f1c40f), 25% 이하 → 빨강(#e74c3c)
+   - hp-label: "HP 75 / 100" 형식
+   - enemy-count: "적: 12" 형식
+   - drift-indicator: 드리프트 중일 때만 active 클래스
+
+---
+
+[규칙]
+- 기존 파일 수정 OK. config 읽기만.
+- ES6 module, 하드코딩 금지, 주석 한국어.

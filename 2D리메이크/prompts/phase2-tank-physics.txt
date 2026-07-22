@@ -1,0 +1,70 @@
+=== PHASE 2: 탱크 물리 + 입력 ===
+
+Phase 1에서 main.js, map.js, camera.js가 완성됐어. 이제 탱크를 추가해.
+
+---
+
+[구현할 파일]
+
+1. input.js — 입력 처리
+   - PLAYER_INPUT 객체:
+     {
+       driver:  { forward, reverse, left, right, action: false },
+       gunner:  { aimX, aimY, fire: false }
+     }
+   - 이벤트 리스너: keydown/keyup (config/controls.js의 키 코드로 판정)
+   - mousemove: gunner.aimX/Y 업데이트 (캔버스 좌표계로 변환)
+   - mousedown/mouseup: gunner.fire 토글
+   - updateInput() 함수 내보내기 (매 프레임 호출해서 최신 상태 유지)
+   - 현재는 솔로모드(하나의 키보드+마우스로 driver+gunner 모두 바인딩)
+   - config/controls.js 읽기
+
+2. tank.js — 탱크 물리 + 렌더링
+   - Tank 클래스:
+     {
+       x, y,              // 위치 (월드 좌표)
+       vx, vy,            // 속도 벡터 (px/s)
+       chassisAngle,      // 섀시 방향 (rad) — WASD가 제어
+       turretAngle,       // 포탑 방향 (rad) — 마우스가 제어
+       hp, maxHp,
+       width, height,     // config/tank.js에서
+       weapon,            // 장착 무기 (config/weapons.js의 default)
+     }
+   
+   - updateTank(tank, input, dt):
+     * A/D → chassisAngle 회전 (config/physics.js turnRate)
+     * W → chassisAngle 방향으로 가속 (acceleration × dt)
+     * S → chassisAngle 반대 방향 가속 (reverseMultiplier 적용)
+     * 무입력 시 friction 곱셈 감속
+     * maxSpeed 제한 (벡터 길이 클램프)
+     * 포탑 각도 = atan2(aimY-tank.y, aimX-tank.x)
+     * 드리프트 각도 계산: chassisAngle vs velocity 방향 차이
+     * 위치: x += vx * dt/1000, y += vy * dt/1000
+     * 맵 경계에서 못 나가게 클램프
+   
+   - drawTank(ctx, tank):
+     * 섀시: fillRect 중심 회전 사각형 (config/tank.js 색상)
+     * 포탑: 회전된 선 (turretLength, turretWidth)
+   
+   - config/tank.js, config/physics.js 읽기
+
+3. main.js 수정
+   - Tank 인스턴스 생성 (맵 중앙 또는 config/map.js spawnAreaRadius 내 랜덤)
+   - update(dt)에서: updateInput() → updateTank() → updateCamera()
+   - render()에서: drawMap() 후 drawTank()
+   - 카메라 타겟을 tank.x, tank.y로 설정
+
+---
+
+[규칙]
+- 기존 파일(main.js, map.js, camera.js, index.html, config/)은 과감히 수정해도 됨.
+  단, config 파일은 읽기만. 수정 금지.
+- 하드코딩 금지. config/ import.
+- 주석 한국어.
+
+---
+
+[드리프트 시각 피드백]
+- drawTank에서 드리프트 각도가 physics.js의 driftThreshold 초과 시:
+  index.html의 #drift-indicator에 active 클래스 추가 (main.js에서)
+  (이미 CSS에 .active { opacity:1 } 해놨음)

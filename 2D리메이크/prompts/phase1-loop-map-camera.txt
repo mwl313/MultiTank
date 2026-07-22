@@ -1,0 +1,75 @@
+=== PHASE 1: 게임 루프 + 맵 + 카메라 ===
+
+이 작업 디렉토리에서 2D 탑다운 탱크 게임 MVP를 만들고 있어.
+
+너가 해야 할 일: 게임 루프, 랜덤 맵 생성, 카메라를 구현해.
+
+---
+
+[지금 디렉토리 구조]
+index.html     ← 이미 있음 (Canvas + HUD + 게임오버 UI)
+config/
+  game.js      ← 게임 설정 (캔버스 1920x1080, FPS 60)
+  map.js       ← 맵 파라미터 (3000x3000, 장애물 40개, 시드)
+  tank.js      ← 탱크 스탯 (HP 100, 크기, 색상) — 아직 안 씀
+  enemies.js   ← 적 타입 + 스폰 설정 — 아직 안 씀
+  weapons.js   ← 무기 설정 — 아직 안 씀
+  physics.js   ← 물리 파라미터 — 아직 안 씀
+  controls.js  ← 키 바인딩 — 아직 안 씀
+
+---
+
+[구현할 파일]
+
+1. main.js — 게임 진입점
+   - config/game.js 에서 캔버스 크기, FPS 읽기
+   - requestAnimationFrame 루프
+   - delta time 계산 (ms)
+   - 상태 관리: { status: 'playing' | 'gameover' }
+   - 매 프레임: update(dt) → render()
+   - 필요한 모든 모듈 import + update/render 호출 구조
+
+2. map.js — 랜덤 맵 생성
+   - config/map.js 읽기
+   - seed 기반 랜덤 (간단한 seededRandom 함수도 직접 구현)
+   - 장애물 생성: 사각형, config의 obstacleCount만큼
+   - 장애물 겹침 검사 (AABB)
+   - 맵 데이터 구조: obstacles = [{ x, y, w, h }]
+   - drawMap(ctx, camera) 함수: 회색 사각형으로 장애물 렌더링
+
+3. camera.js — 카메라
+   - 카메라 객체: { x, y } (좌상단 좌표)
+   - worldToScreen(wx, wy, camera) → { x, y } 변환
+   - updateCamera(camera, targetX, targetY, dt) → lerp로 부드럽게 추적
+   - config/game.js의 canvasWidth/Height 참조 (화면 중앙이 따라가도록)
+
+---
+
+[규칙 — 반드시 지킬 것]
+- 하드코딩 금지. 모든 수치는 config/ 파일에서 import.
+- ES6 module (type="module"). 파일 확장자는 .js.
+- 주석은 한국어로.
+- config 파일은 읽기만. 절대 수정 금지.
+- index.html은 이미 있음. 수정하지 마.
+- 실제 브라우저에서 http-server로 실행 가능해야 함.
+
+---
+
+[렌더링 루프 구조 예시]
+```
+update(dt):
+  updateCamera(camera, playerX, playerY, dt)
+
+render():
+  ctx.clearRect(0, 0, canvas.width, canvas.height)
+  ctx.save()
+  ctx.translate(-camera.x, -camera.y)
+  drawMap(ctx, camera)
+  ctx.restore()
+```
+
+---
+
+[테스트 방법]
+로컬 서버 실행 후 브라우저에서 열어.
+캔버스에 회색 장애물들이 보이고, 콘솔 에러 없으면 성공.
